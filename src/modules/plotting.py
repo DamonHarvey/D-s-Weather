@@ -9,6 +9,7 @@ from pyqtgraph.graphicsItems.PlotDataItem import PlotDataItem
 from pyqtgraph.graphicsItems.PlotItem.PlotItem import PlotItem
 from pyqtgraph.graphicsItems.ViewBox.ViewBox import ViewBox
 from pyqtgraph.graphicsItems.AxisItem import AxisItem
+from PySide6.QtGui import QPainter
 
 
 class _CustomAxis(pg.AxisItem):
@@ -18,6 +19,10 @@ class _CustomAxis(pg.AxisItem):
 
         self.tick_sign_before = False
         self.tick_sign = ""
+
+        self.angle = 0
+        self.x_transform = 0
+        self.y_transform = 0
 
     def set_sign(self, value: str):
         self.tick_sign = value
@@ -36,6 +41,42 @@ class _CustomAxis(pg.AxisItem):
 
         else:
             return [f"{v:.0f}{self.tick_sign}" for v in values]
+
+    def set_angle(self, angle: int):
+        self.angle = angle
+
+    def set_transform(self, x, y):
+        self.x_transform = x
+        self.y_transform = y
+
+    def drawPicture(
+        self, p: QPainter, axisSpec: tuple, tickSpecs: list, textSpecs: list
+    ):
+
+        print(type(textSpecs))
+
+        # axisSpec: (pen, p1, p2)
+        axis_pen, axis_p1, axis_p2 = axisSpec
+        p.setPen(axis_pen)
+        p.drawLine(axis_p1, axis_p2)  # <-- draw baseline
+
+        # Draw ticks
+        for pen, p1, p2 in tickSpecs:
+            p.setPen(pen)
+            p.drawLine(p1, p2)
+
+        # Draw rotated labels
+        p.setPen(self.pen())
+        for rect, flags, text in textSpecs:
+            p.save()
+            # move to center of label rect
+            p.translate(rect.center().x(), rect.center().y())
+            p.translate(self.x_transform, self.y_transform)
+
+            p.rotate(self.angle)
+            # draw text roughly centered
+            p.drawText(-rect.width() / 2, rect.height() / 2, text)
+            p.restore()
 
 
 class Plot:
@@ -130,32 +171,60 @@ class Plot:
         self._root.show()
 
 
-class _XAxes:
+class _Axes:
 
     def __init__(self, root: Plot) -> None:
 
         self._root = root
         self._setup()
 
+    def _setup(self):  # implement
+        self._axis: _CustomAxis
+
+    def set_max_range(self, max_range: int | float | None = None):  # implement
+        pass
+
+    def invert(self, x: bool):  # implement
+        pass
+
+    def set_label(self, label: str):
+
+        self._axis.setLabel(label)
+
+    def set_tick_lable_angle(self, angle):
+        self._axis.set_angle(angle)
+
+    def set_tick_lable_transform(self, x: int, y: int):
+        self._axis.set_transform(x, y)
+
+    def set_sign(self, sign: str):
+
+        self._axis.set_sign(sign)
+
+    def set_ticks(self):
+
+        ticks: list[tuple[float, str]] = [(i, f"{i}:00") for i in range(24)]
+
+        self._axis.setTicks([ticks])
+
+
+class _XAxes(_Axes):
+
     def _setup(self):
 
-        self._x_axis = _CustomAxis(orientation="bottom")
-        self._root._plot_item.setAxisItems({"bottom": self._x_axis})
+        self._axis = _CustomAxis(orientation="bottom")
+        self._root._plot_item.setAxisItems({"bottom": self._axis})
 
         self.set_max_range()
         self.set_label("X-Axis")
 
-    def set_label(self, label: str):
-
-        self._x_axis.setLabel(label)
-
-    def set_max_range(self, max_x_range: int | float | None = None):
-        if max_x_range is None:
+    def set_max_range(self, max_range: int | float | None = None):
+        if max_range is None:
             self._root._view_box.enableAutoRange(axis="x")
 
         else:
             self._root._view_box.setXRange(
-                0, max_x_range, 0
+                0, max_range, 0
             )  # padding 0 so point 0 is at exact edge
 
             # self._root._max_x = int(self._root._view_box.viewRange()[0][1])
@@ -164,52 +233,26 @@ class _XAxes:
 
         self._root._view_box.invertX(x)
 
-    def set_sign(self, sign: str):
 
-        signed_x_axis = _CustomAxis(orientation="bottom")
-        signed_x_axis.set_sign(sign)
-
-        self._x_axis.set_sign(sign)
-
-    def set_ticks(self):
-
-        ticks: list[tuple[float, str]] = [(i, f"{i}:00") for i in range(24)]
-
-        self._x_axis.setTicks([ticks])
-
-
-class _YAxes:
-
-    def __init__(self, root: Plot) -> None:
-
-        self._root = root
-        self._setup()
+class _YAxes(_Axes):
 
     def _setup(self):
 
-        self._y_axis = _CustomAxis(orientation="left")
-        self._root._plot_item.setAxisItems({"left": self._y_axis})
+        self._axis = _CustomAxis(orientation="left")
+        self._root._plot_item.setAxisItems({"left": self._axis})
 
         self.set_max_range()
         self.set_label("Y-Axis")
 
-    def set_label(self, label: str):
-
-        self._y_axis.setLabel(label)
-
-    def set_max_range(self, max_y_range: int | float | None = None):
-        if max_y_range is None:
+    def set_max_range(self, max_range: int | float | None = None):
+        if max_range is None:
             self._root._view_box.enableAutoRange(axis="y")
         else:
-            self._root._view_box.setYRange(max_y_range, 0)
+            self._root._view_box.setYRange(max_range, 0)
 
     def invert(self, x: bool):
 
         self._root._view_box.invertY(x)
-
-    def set_sign(self, sign: str):
-
-        self._y_axis.set_sign(sign)
 
 
 class _Data:
@@ -321,7 +364,10 @@ def main():
     window.y_axis.set_sign("°F")
     window.x_axis.set_sign("min")
 
-    # window.x_axis.set_ticks()
+    window.x_axis.set_ticks()
+
+    window.x_axis.set_tick_lable_angle(-45)
+    window.x_axis.set_tick_lable_transform(-10, 5)
 
     data = [random.randint(0, 100) for _ in range(24)]
     # data2 = [random.randint(0, 100) for _ in range(32)]
