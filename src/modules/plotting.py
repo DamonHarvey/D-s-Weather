@@ -1,6 +1,6 @@
 import pyqtgraph as pg
 from PySide6.QtWidgets import QApplication, QStyleOption
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt, QRectF
 
 import numpy as np
 import random
@@ -11,31 +11,10 @@ from pyqtgraph.graphicsItems.ViewBox.ViewBox import ViewBox
 from pyqtgraph.graphicsItems.AxisItem import AxisItem
 
 
-class _SignedAxis(pg.AxisItem):
+class _CustomAxis(pg.AxisItem):
 
-    def __init__(
-        self,
-        orientation: str,
-        pen=None,
-        textPen=None,
-        tickPen=None,
-        linkView=None,
-        parent=None,
-        maxTickLength=-5,
-        showValues=True,
-        **args,
-    ):
-        super().__init__(
-            orientation,
-            pen,
-            textPen,
-            tickPen,
-            linkView,
-            parent,
-            maxTickLength,
-            showValues,
-            **args,
-        )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.tick_sign_before = False
         self.tick_sign = ""
@@ -159,16 +138,16 @@ class _XAxes:
         self._setup()
 
     def _setup(self):
-        self._x_axis: AxisItem = self._root._plot_item.getAxis("bottom")
-        self._label = "X-Axis"
+
+        self._x_axis = _CustomAxis(orientation="bottom")
+        self._root._plot_item.setAxisItems({"bottom": self._x_axis})
 
         self.set_max_range()
-        self.set_label(self._label)
+        self.set_label("X-Axis")
 
     def set_label(self, label: str):
 
-        self._label = label
-        self._x_axis.setLabel(self._label)
+        self._x_axis.setLabel(label)
 
     def set_max_range(self, max_x_range: int | float | None = None):
         if max_x_range is None:
@@ -187,13 +166,16 @@ class _XAxes:
 
     def set_sign(self, sign: str):
 
-        signed_x_axis = _SignedAxis(orientation="bottom")
+        signed_x_axis = _CustomAxis(orientation="bottom")
         signed_x_axis.set_sign(sign)
 
-        self._root._plot_item.setAxisItems({"bottom": signed_x_axis})
+        self._x_axis.set_sign(sign)
 
-        self._x_axis = signed_x_axis
-        self.set_label(self._label)
+    def set_ticks(self):
+
+        ticks: list[tuple[float, str]] = [(i, f"{i}:00") for i in range(24)]
+
+        self._x_axis.setTicks([ticks])
 
 
 class _YAxes:
@@ -204,17 +186,16 @@ class _YAxes:
         self._setup()
 
     def _setup(self):
-        self._y_axis: AxisItem = self._root._plot_item.getAxis("left")
-        self._label = "Y-Axis"
+
+        self._y_axis = _CustomAxis(orientation="left")
+        self._root._plot_item.setAxisItems({"left": self._y_axis})
 
         self.set_max_range()
-        self.set_label(self._label)
+        self.set_label("Y-Axis")
 
     def set_label(self, label: str):
-        y_axis: AxisItem = self._root._plot_item.getAxis("left")
 
-        self._label = label
-        y_axis.setLabel(self._label)
+        self._y_axis.setLabel(label)
 
     def set_max_range(self, max_y_range: int | float | None = None):
         if max_y_range is None:
@@ -228,13 +209,7 @@ class _YAxes:
 
     def set_sign(self, sign: str):
 
-        signed_y_axis = _SignedAxis(orientation="left")
-        signed_y_axis.set_sign(sign)
-
-        self._root._plot_item.setAxisItems({"left": signed_y_axis})
-
-        self._y_axis = signed_y_axis
-        self.set_label(self._label)
+        self._y_axis.set_sign(sign)
 
 
 class _Data:
@@ -343,15 +318,13 @@ def main():
 
     window.y_axis.set_max_range(100)
 
-    window.y_axis.set_sign("%")
-    window.x_axis.set_sign("ms")
+    window.y_axis.set_sign("°F")
+    window.x_axis.set_sign("min")
 
-    window.x_axis.set_max_range(100)
+    # window.x_axis.set_ticks()
 
-    window.data.set_max_data_points(10)
-
-    data = [random.randint(0, 100) for _ in range(32)]
-    data2 = [random.randint(0, 100) for _ in range(32)]
+    data = [random.randint(0, 100) for _ in range(24)]
+    # data2 = [random.randint(0, 100) for _ in range(32)]
 
     # data = [40, 44, 52, 60, 52, 48, 46]
     # data2 = [42, 56, 70, 80, 99, 43, 13]
@@ -359,8 +332,6 @@ def main():
     window.data.set_data(data)
 
     window.show()
-
-    window.data.interpolate_data(data2)
 
     app.exec()
 

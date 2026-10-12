@@ -10,6 +10,7 @@ def get_data():
         "latitude": 40.0000,
         "longitude": -74.0000,
         "hourly": ["temperature_2m"],
+        "forcast_days": 2,
     }
 
     response = requests.get(url, params)
@@ -27,7 +28,9 @@ def data_to_file(data):
 def main():
     pass
 
-    # data = get_data()
+    data = get_data()
+
+    data_to_file(data)
 
 
 if __name__ == "__main__":
